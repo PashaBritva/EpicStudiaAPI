@@ -32,6 +32,7 @@ router.post('/login', (req, res) => {
         if (!validPass) return res.status(400).send('Неверный логин или пароль');
 
         const token = jwt.sign({ id: user.id, role: user.role }, SECRET_KEY, { expiresIn: '7d' });
+        res.cookie('token', token, { httpOnly: true, secure: true });
         res.status(200).json({ token });
     });
 });

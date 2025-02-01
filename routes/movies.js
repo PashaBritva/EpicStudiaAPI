@@ -37,7 +37,7 @@ router.get('/:id/stream', (req, res) => {
             range = 'bytes=0-';
         }
 
-        const CHUNK_SIZE = 50 ** 6;
+        const CHUNK_SIZE = 10 ** 6;
         const parts = range.replace(/bytes=/, '').split('-');
         const start = parseInt(parts[0], 10);
         const end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
@@ -154,5 +154,21 @@ router.post('/:id/comment', (req, res) => {
       }
     });
 });
+
+router.get('/search', (req, res) => {
+    const { hashtags } = req.query;
+    if (!hashtags) return res.status(400).send('Хештеги не указаны');
+
+    const hashtagArray = hashtags.split(',').map((h) => h.trim());
+    db.all(
+        `SELECT * FROM movies WHERE hashtags LIKE ?`,
+        [`%${hashtagArray.join('%')}%`],
+        (err, rows) => {
+            if (err) return res.status(500).send('Ошибка при поиске');
+            res.status(200).json(rows);
+        }
+    );
+});
+
 
 module.exports = router;
