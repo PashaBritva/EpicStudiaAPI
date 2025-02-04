@@ -1,6 +1,6 @@
 {
-  "name": "epicstudia",
-  "version": "0.0",
+  "name": "epicstudiaapi",
+  "version": "1.4.0",
   "private": true,
   "scripts": {
     "start": "node ./bin/www"
@@ -12,6 +12,7 @@
     "debug": "~2.6.9",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "fluent-ffmpeg": "^2.1.3",
     "http-errors": "~1.6.3",
     "jsonwebtoken": "^9.0.2",
     "morgan": "~1.9.1",

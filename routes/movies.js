@@ -7,7 +7,7 @@ const path = require('path');
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, '..', 'uploads'));
+        cb(null, path.join(__dirname, '..', 'uploads/'));
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -20,6 +20,7 @@ const upload = multer({ storage: storage });
 
 let router = express.Router();
 router.use(cors());
+router.use(express.urlencoded({ extended: true }));
 router.use(express.json());
 
 
@@ -67,29 +68,56 @@ router.get('/:id/stream', (req, res) => {
 });
 
 router.post('/upload', upload.single('fullMovie'), (req, res) => {
-    const { title, description, hashtags, trailerUrl } = req.body;
-    if (!req.file || !title || !description || !trailerUrl || !Array.isArray(JSON.parse(hashtags))) {
-        return res.status(400).send('Invalid input data');
+    const { title, description, hashtags } = req.body;
+
+    if (!req.file || !title || !description || !hashtags) {
+        return res.status(400).send('Недостаточно данных для загрузки фильма');
     }
 
-    const filePath = `/uploads/${req.file.filename}`;
-    const parsedHashtags = JSON.parse(hashtags);
-
-    db.run(
-        'INSERT INTO movies (title, description, hashtags, trailerUrl, fullMovieUrl) VALUES (?, ?, ?, ?, ?)',
-        [title, description, parsedHashtags.join(','), trailerUrl, filePath],
-        (err) => {
-            if (err) {
-                res.status(400).send('Failed to add movie');
-            } else {
-                res.status(201).json({ message: 'Movie added', filePath });
-            }
+    let parsedHashtags;
+    try {
+        parsedHashtags = JSON.parse(hashtags);
+        if (!Array.isArray(parsedHashtags)) {
+            return res.status(400).send('Хештеги должны быть массивом');
         }
-    );
+    } catch (error) {
+        return res.status(400).send('Ошибка при парсинге хештегов');
+    }
+
+    db.all('SELECT * FROM movies', [], (err, movies) => {
+        if (err) {
+            return res.status(500).send('Не удалось получить фильмы');
+        }
+
+        const newMovieId = movies.length + 1;
+        const filePath = path.join(__dirname, '..', 'uploads', newMovieId.toString(), `${newMovieId}.mp4`);
+
+        const movieDir = path.dirname(filePath);
+        if (!fs.existsSync(movieDir)) {
+            fs.mkdirSync(movieDir);
+        }
+
+        db.run(
+            'INSERT INTO movies (title, description, hashtags, fullMovieUrl) VALUES (?, ?, ?, ?)',
+            [title, description, parsedHashtags.join(','), filePath],
+            (err) => {
+                if (err) {
+                    return res.status(400).send('Не удалось добавить фильм');
+                }
+
+                fs.renameSync(req.file.path, filePath);
+
+                res.status(201).json({
+                    message: 'Фильм успешно загружен',
+                    filePath: filePath
+                });
+            }
+        );
+    });
 });
 
 router.post('/', (req, res) => {
-    const { title, description, hashtags, trailerUrl, fullMovieUrl } = req.body;
+    const { title, description, hashtags, fullMovieUrl } = req.body;
     if (!title || !description || !trailerUrl || !fullMovieUrl || !Array.isArray(hashtags)) {
         return res.status(400).send('Invalid input data');
     }
@@ -107,7 +135,7 @@ router.post('/', (req, res) => {
 });
   
 router.get('/', (req, res) => {
-    db.all('SELECT * FROM movies', [], (err, movies) => {
+    db.all('SELECT id, title, description, hashtags, rating FROM movies', [], (err, movies) => {
       if (err) {
         res.status(500).send('Failed to retrieve movies');
       } else {
@@ -118,7 +146,7 @@ router.get('/', (req, res) => {
 
 router.get('/:id', (req, res) => {
     const movieId = req.params.id;
-    db.get('SELECT * FROM movies WHERE id = ?', [movieId], (err, movie) => {
+    db.get('SELECT id, title, description, hashtags, rating FROM movies WHERE id = ?', [movieId], (err, movie) => {
       if (err) {
         res.status(500).send('Failed to retrieve movie');
       } else if (!movie) {
@@ -143,6 +171,7 @@ router.get('/:id/comments', async (req, res) => {
 router.post('/:id/comment', (req, res) => {
     const { user, text } = req.body;
     const movieId = req.params.id;
+
     if (!user || !text) {
         return res.status(400).send('Invalid comment data');
     }
@@ -161,7 +190,7 @@ router.get('/search', (req, res) => {
 
     const hashtagArray = hashtags.split(',').map((h) => h.trim());
     db.all(
-        `SELECT * FROM movies WHERE hashtags LIKE ?`,
+        `SELECT id, title, description, hashtags, rating FROM movies WHERE hashtags LIKE ?`,
         [`%${hashtagArray.join('%')}%`],
         (err, rows) => {
             if (err) return res.status(500).send('Ошибка при поиске');
