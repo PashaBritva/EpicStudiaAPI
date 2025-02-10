@@ -1,30 +1,41 @@
-const sqlite3 = require('sqlite3').verbose();
+const mysql = require('mysql2');
+require('dotenv').config();
 
-const db = new sqlite3.Database('./movies.sqlite', (err) => {
+const db = mysql.createConnection({
+  host: process.env.DB_URL,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+});
+
+db.connect((err) => {
   if (err) {
-    console.error('Error opening database', err.message);
+    console.error('Ошибка подключения к MySQL:', err.message);
   } else {
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY,
-      username TEXT UNIQUE,
-      password TEXT,
-      role TEXT DEFAULT 'user'
+    console.log('Успешное подключение к базе данных');
+
+    db.query(`CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      username VARCHAR(255) UNIQUE,
+      password VARCHAR(255),
+      role VARCHAR(50) DEFAULT 'user'
     )`);
-    db.run(`CREATE TABLE IF NOT EXISTS movies (
-      id INTEGER PRIMARY KEY,
-      title TEXT,
+
+    db.query(`CREATE TABLE IF NOT EXISTS movies (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(255),
       description TEXT,
       hashtags TEXT,
-      trailerUrl TEXT,
       fullMovieUrl TEXT,
-      rating INTEGER DEFAULT 0
+      rating INT DEFAULT 0
     )`);
-    db.run(`CREATE TABLE IF NOT EXISTS comments (
-      id INTEGER PRIMARY KEY,
-      movieId INTEGER,
-      user TEXT,
+
+    db.query(`CREATE TABLE IF NOT EXISTS comments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      movieId INT,
+      user VARCHAR(255),
       text TEXT,
-      FOREIGN KEY (movieId) REFERENCES movies(id)
+      FOREIGN KEY (movieId) REFERENCES movies(id) ON DELETE CASCADE
     )`);
   }
 });
